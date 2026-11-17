@@ -10,8 +10,22 @@ from backend import documents
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    # Use a temporary directory instead of real uploads/
+    # Store test uploads in a temporary directory
     monkeypatch.setattr(documents, "UPLOAD_DIR", tmp_path)
+
+    # Simulate successful indexing without AI or PostgreSQL
+    def fake_index_document(document_id, filename, file_path):
+        return {
+            "document_id": document_id,
+            "saved_chunks": 2,
+            "status": "indexed",
+        }
+
+    monkeypatch.setattr(
+        documents,
+        "index_document",
+        fake_index_document,
+    )
 
     with TestClient(app) as test_client:
         yield test_client
@@ -41,7 +55,8 @@ def test_upload_valid_pdf(client, tmp_path):
 
     data = response.json()
 
-    assert data["status"] == "uploaded"
+    assert data["status"] == "indexed"
+    assert data["saved_chunks"] == 2
     assert data["filename"] == "example.pdf"
     assert data["size_bytes"] == len(pdf_content)
 

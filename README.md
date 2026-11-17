@@ -38,7 +38,12 @@ The goal is to create a RAG (Retrieval-Augmented Generation) application that al
 - Cross-language document retrieval
 - Cosine similarity ranking
 - Semantic Search REST API
-- Automated tests using pytest (15 tests)
+- PostgreSQL database with pgvector extension
+- Persistent storage of document chunks and embeddings
+- Vector similarity search using cosine distance
+- Automatic PDF indexing after upload
+- Safe document re-indexing
+- Automated tests using pytest (17 tests)
 
 ## Planned Features
 
@@ -119,6 +124,7 @@ http://127.0.0.1:8000
 | GET    | `/documents/{document_id}/text`   | Extract PDF text             |
 | GET    | `/documents/{document_id}/chunks` | Retrieve text chunks         |
 | POST   | `/documents/{document_id}/search` | Semantic search within a PDF |
+| POST   | `/documents/{document_id}/index`  | Index or re-index a PDF      |
 
 ## API Documentation
 
@@ -168,8 +174,9 @@ The current validation is intended for development and does not constitute compl
 - [x] Add automated tests
 - [x] Generate document embeddings
 - [x] Implement semantic search
-- [ ] Integrate PostgreSQL and pgvector
-- [ ] Implement RAG pipeline
+- [x] Integrate PostgreSQL and pgvector
+- [x] Implement automatic document indexing
+- [x] Implement persistent vector search- [ ] Implement RAG pipeline
 - [ ] Add LLM-powered chat
 - [ ] Build Next.js frontend
 - [ ] Add Docker support
