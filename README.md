@@ -176,7 +176,8 @@ The current validation is intended for development and does not constitute compl
 - [x] Implement semantic search
 - [x] Integrate PostgreSQL and pgvector
 - [x] Implement automatic document indexing
-- [x] Implement persistent vector search- [ ] Implement RAG pipeline
+- [x] Implement persistent vector search
+- [ ] Implement RAG pipeline
 - [ ] Add LLM-powered chat
 - [ ] Build Next.js frontend
 - [ ] Add Docker support
