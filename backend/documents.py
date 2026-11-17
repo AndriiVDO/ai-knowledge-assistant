@@ -2,8 +2,16 @@ from backend.pdf_processor import extract_pdf_text
 from pathlib import Path
 from uuid import UUID, uuid4
 from backend.chunking import chunk_pages
+from pydantic import BaseModel, Field
+from backend.search import semantic_search
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+
+
+class SearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    top_k: int = Field(default=3, ge=1, le=10)
+
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -126,4 +134,52 @@ def get_document_chunks(document_id: str):
         "page_count": document["page_count"],
         "chunk_count": len(chunks),
         "chunks": chunks
+    }
+
+
+
+@router.post("/{document_id}/search")
+def search_document(document_id: str, request: SearchRequest):
+    try:
+        document_uuid = UUID(document_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid document ID"
+        )
+
+    file_path = UPLOAD_DIR / f"{document_uuid}.pdf"
+
+    if not file_path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found"
+        )
+
+    if not request.query.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Search query cannot be empty"
+        )
+
+    try:
+        document = extract_pdf_text(file_path)
+        chunks = chunk_pages(document["pages"])
+    except Exception:
+        raise HTTPException(
+            status_code=422,
+            detail="Unable to process PDF"
+        )
+
+    results = semantic_search(
+        query=request.query,
+        chunks=chunks,
+        top_k=request.top_k
+    )
+
+    return {
+        "document_id": str(document_uuid),
+        "query": request.query,
+        "total_chunks": len(chunks),
+        "results": results
     }

@@ -33,7 +33,12 @@ The goal is to create a RAG (Retrieval-Augmented Generation) application that al
 - Document text and chunks retrieval endpoints
 - Automatic OpenAPI documentation
 - Interactive Swagger UI
-- Automated tests using pytest (10 tests)
+- Multilingual text embeddings using multilingual-e5-small
+- Semantic search across PDF documents
+- Cross-language document retrieval
+- Cosine similarity ranking
+- Semantic Search REST API
+- Automated tests using pytest (15 tests)
 
 ## Planned Features
 
@@ -106,13 +111,14 @@ http://127.0.0.1:8000
 
 ## API Endpoints
 
-| Method | Endpoint                          | Description           |
-| ------ | --------------------------------- | --------------------- |
-| GET    | `/`                               | Welcome message       |
-| GET    | `/health`                         | API health check      |
-| POST   | `/documents/upload`               | Upload a PDF document |
-| GET    | `/documents/{document_id}/text`   | Extract PDF text      |
-| GET    | `/documents/{document_id}/chunks` | Retrieve text chunks  |
+| Method | Endpoint                          | Description                  |
+| ------ | --------------------------------- | ---------------------------- |
+| GET    | `/`                               | Welcome message              |
+| GET    | `/health`                         | API health check             |
+| POST   | `/documents/upload`               | Upload a PDF document        |
+| GET    | `/documents/{document_id}/text`   | Extract PDF text             |
+| GET    | `/documents/{document_id}/chunks` | Retrieve text chunks         |
+| POST   | `/documents/{document_id}/search` | Semantic search within a PDF |
 
 ## API Documentation
 
@@ -160,8 +166,8 @@ The current validation is intended for development and does not constitute compl
 - [x] Implement PDF text extraction
 - [x] Implement text chunking
 - [x] Add automated tests
-- [ ] Generate document embeddings
-- [ ] Implement semantic search
+- [x] Generate document embeddings
+- [x] Implement semantic search
 - [ ] Integrate PostgreSQL and pgvector
 - [ ] Implement RAG pipeline
 - [ ] Add LLM-powered chat
