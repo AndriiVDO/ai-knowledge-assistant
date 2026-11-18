@@ -7,14 +7,19 @@ from backend.search import semantic_search
 from backend.embeddings import embed_query
 from backend.repository import search_similar_chunks
 from backend.indexing import index_document
-
+from backend.rag import retrieve_context
+from backend.llm import generate_answer
 from fastapi import APIRouter, File, HTTPException, UploadFile
-
+import httpx
+from ollama import ResponseError
 
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1)
     top_k: int = Field(default=3, ge=1, le=10)
 
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1)
+    top_k: int = Field(default=2, ge=1, le=10)
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -230,3 +235,65 @@ def index_uploaded_document(document_id: str):
         )
 
     return result
+
+
+@router.post("/{document_id}/ask")
+def ask_document(document_id: str, request: AskRequest):
+    """Answer a question using the indexed PDF."""
+
+    try:
+        document_uuid = UUID(document_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid document ID",
+        )
+
+    if not request.question.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Question cannot be empty",
+        )
+
+    # Step 1: Retrieve relevant document chunks
+    rag_data = retrieve_context(
+        document_id=str(document_uuid),
+        question=request.question,
+        top_k=request.top_k,
+    )
+
+    if not rag_data["sources"]:
+        raise HTTPException(
+            status_code=404,
+            detail="No indexed content found for this document",
+        )
+
+    try:
+        answer = generate_answer(
+            question=request.question,
+            context=rag_data["context"],
+        )
+    except httpx.TimeoutException as error:
+        raise HTTPException(
+            status_code=504,
+            detail="AI model response timed out",
+        ) from error
+    except httpx.ConnectError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="AI model service is unavailable",
+        ) from error
+    except ResponseError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="AI model failed to generate an answer",
+        ) from error
+
+    # Step 3: Return answer with source references
+    return {
+        "document_id": str(document_uuid),
+        "question": request.question,
+        "answer": answer,
+        "sources": rag_data["sources"],
+        "model": "local-llm",
+    }

@@ -43,7 +43,13 @@ The goal is to create a RAG (Retrieval-Augmented Generation) application that al
 - Vector similarity search using cosine distance
 - Automatic PDF indexing after upload
 - Safe document re-indexing
-- Automated tests using pytest (17 tests)
+- RAG-based question answering using retrieved PDF context
+- Local LLM integration with Ollama
+- Optional OpenAI API integration
+- Source references with document page numbers
+- AI Chat REST API
+- Error handling for AI model timeouts and connection failures
+- Automated tests using pytest (24 tests)
 
 ## Planned Features
 
@@ -116,15 +122,16 @@ http://127.0.0.1:8000
 
 ## API Endpoints
 
-| Method | Endpoint                          | Description                  |
-| ------ | --------------------------------- | ---------------------------- |
-| GET    | `/`                               | Welcome message              |
-| GET    | `/health`                         | API health check             |
-| POST   | `/documents/upload`               | Upload a PDF document        |
-| GET    | `/documents/{document_id}/text`   | Extract PDF text             |
-| GET    | `/documents/{document_id}/chunks` | Retrieve text chunks         |
-| POST   | `/documents/{document_id}/search` | Semantic search within a PDF |
-| POST   | `/documents/{document_id}/index`  | Index or re-index a PDF      |
+| Method | Endpoint                          | Description                           |
+| ------ | --------------------------------- | ------------------------------------- |
+| GET    | `/`                               | Welcome message                       |
+| GET    | `/health`                         | API health check                      |
+| POST   | `/documents/upload`               | Upload a PDF document                 |
+| GET    | `/documents/{document_id}/text`   | Extract PDF text                      |
+| GET    | `/documents/{document_id}/chunks` | Retrieve text chunks                  |
+| POST   | `/documents/{document_id}/search` | Semantic search within a PDF          |
+| POST   | `/documents/{document_id}/index`  | Index or re-index a PDF               |
+| POST   | `/documents/{document_id}/ask`    | Ask AI questions about an indexed PDF |
 
 ## API Documentation
 
@@ -177,20 +184,25 @@ The current validation is intended for development and does not constitute compl
 - [x] Integrate PostgreSQL and pgvector
 - [x] Implement automatic document indexing
 - [x] Implement persistent vector search
-- [ ] Implement RAG pipeline
-- [ ] Add LLM-powered chat
+- [x] Implement RAG pipeline
+- [x] Integrate local LLM with Ollama
+- [x] Implement AI question-answering API
+- [x] Add Docker Compose for PostgreSQL
 - [ ] Build Next.js frontend
-- [ ] Add Docker support
+- [ ] Implement interactive AI chat interface
+- [ ] Add chat history and conversation management
+- [ ] Improve LLM answer quality and source citations
+- [ ] Containerize backend and frontend
 - [ ] Configure CI/CD
 - [ ] Deploy application
 
 ## Project Status
 
-**Active Development — Document Processing Completed**
+**Active Development — Backend RAG MVP implemented**
 
-The backend currently supports PDF uploads, text extraction and chunking.
+The backend supports PDF uploads, automatic indexing, multilingual semantic search, and AI-powered question answering using a local LLM.
 
-The next development milestone is implementing embeddings and semantic search.
+Next milestone: Next.js frontend with document management and AI chat.
 
 ## License
 
