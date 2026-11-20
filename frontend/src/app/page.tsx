@@ -1,8 +1,8 @@
 "use client";
 
+import { toast } from "sonner";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
-  ArrowUp,
   BrainCircuit,
   FileText,
   FolderOpen,
@@ -21,12 +21,14 @@ import {
   Database,
   Clock3,
   ArrowRight,
+  Loader2,
 } from "lucide-react";
 
 import {
   uploadDocument,
   askDocument,
   getDocuments,
+  deleteDocument,
   type UploadedDocument,
   type SourceReference,
   type DocumentInfo,
@@ -35,6 +37,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 type View = "dashboard" | "documents" | "chat";
 
@@ -46,6 +49,28 @@ type ChatMessage = {
 
 function getChatStorageKey(documentId: string): string {
   return `ai-knowledge-chat-${documentId}`;
+}
+
+function loadChatHistory(documentId: string): ChatMessage[] {
+  const savedMessages = localStorage.getItem(getChatStorageKey(documentId));
+
+  if (!savedMessages) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(savedMessages);
+
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter(
+      (item): item is ChatMessage =>
+        typeof item === "object" &&
+        item !== null &&
+        (item.role === "user" || item.role === "assistant") &&
+        typeof item.content === "string",
+    );
+  } catch {
+    return [];
+  }
 }
 
 export default function Home() {
@@ -64,6 +89,15 @@ export default function Home() {
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(
+    null,
+  );
+  const [documentToDelete, setDocumentToDelete] = useState<DocumentInfo | null>(
+    null,
+  );
+  const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
+
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +109,28 @@ export default function Home() {
         if (!cancelled) {
           setDocuments(data);
           setDocumentsError(null);
+
+          const savedDocumentId = localStorage.getItem(
+            "ai-knowledge-active-document",
+          );
+
+          const savedDocument = data.find(
+            (document) => document.id === savedDocumentId,
+          );
+
+          if (savedDocument) {
+            setUploadedDocument({
+              id: savedDocument.id,
+              filename: savedDocument.filename,
+              size_bytes: savedDocument.file_size,
+              status: "indexed",
+              saved_chunks: savedDocument.chunk_count,
+            });
+
+            setMessages(loadChatHistory(savedDocument.id));
+          } else if (savedDocumentId) {
+            localStorage.removeItem("ai-knowledge-active-document");
+          }
         }
       } catch (error) {
         if (!cancelled) {
@@ -97,67 +153,6 @@ export default function Home() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (isLoadingDocuments || documentsError) return;
-
-    const savedDocumentId = localStorage.getItem(
-      "ai-knowledge-active-document",
-    );
-
-    if (!savedDocumentId) return;
-
-    const savedDocument = documents.find(
-      (document) => document.id === savedDocumentId,
-    );
-
-    if (!savedDocument) {
-      localStorage.removeItem("ai-knowledge-active-document");
-      return;
-    }
-
-    setUploadedDocument({
-      id: savedDocument.id,
-      filename: savedDocument.filename,
-      size_bytes: savedDocument.file_size,
-      status: "indexed",
-      saved_chunks: savedDocument.chunk_count,
-    });
-  }, [documents, isLoadingDocuments, documentsError]);
-
-  useEffect(() => {
-    if (!uploadedDocument) {
-      return;
-    }
-
-    const storageKey = getChatStorageKey(uploadedDocument.id);
-    const savedMessages = localStorage.getItem(storageKey);
-
-    if (!savedMessages) {
-      setMessages([]);
-      return;
-    }
-
-    try {
-      const parsed: unknown = JSON.parse(savedMessages);
-
-      if (!Array.isArray(parsed)) {
-        throw new Error("Invalid chat history");
-      }
-
-      const validMessages = parsed.filter(
-        (item): item is ChatMessage =>
-          typeof item === "object" &&
-          item !== null &&
-          (item.role === "user" || item.role === "assistant") &&
-          typeof item.content === "string",
-      );
-
-      setMessages(validMessages);
-    } catch {
-      setMessages([]);
-    }
-  }, [uploadedDocument?.id]);
 
   const [documentSearch, setDocumentSearch] = useState("");
   const [documentSort, setDocumentSort] = useState<
@@ -193,18 +188,25 @@ export default function Home() {
     if (!file) return;
 
     if (!file.name.toLowerCase().endsWith(".pdf")) {
-      alert("Please select a PDF file.");
+      toast.error("Invalid file format", {
+        description: "Only PDF files are supported.",
+      });
+
       event.target.value = "";
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert("PDF files must be smaller than 10 MB.");
+      toast.error("File is too large", {
+        description: "The maximum allowed PDF size is 10 MB.",
+      });
+
       event.target.value = "";
       return;
     }
 
     setSelectedFile(file);
+    setUploadError(null);
     setView("documents");
   }
 
@@ -219,8 +221,44 @@ export default function Home() {
       saved_chunks: document.chunk_count,
     });
 
+    setMessages(loadChatHistory(document.id));
+
     setChatError(null);
     setView("chat");
+  }
+
+  async function handleDeleteDocument(document: DocumentInfo) {
+    if (deletingDocumentId || isAnswering) return;
+
+    setDeletingDocumentId(document.id);
+    setDeleteError(null);
+
+    try {
+      await deleteDocument(document.id);
+      toast.success("Document deleted", {
+        description: `"${document.filename}" was removed successfully.`,
+      });
+      setDocumentToDelete(null);
+
+      setDocuments((previous) =>
+        previous.filter((item) => item.id !== document.id),
+      );
+
+      localStorage.removeItem(getChatStorageKey(document.id));
+
+      if (uploadedDocument?.id === document.id) {
+        localStorage.removeItem("ai-knowledge-active-document");
+        setUploadedDocument(null);
+        setMessages([]);
+        setChatError(null);
+      }
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "Unable to delete document.",
+      );
+    } finally {
+      setDeletingDocumentId(null);
+    }
   }
 
   async function handleUpload() {
@@ -233,6 +271,7 @@ export default function Home() {
       const document = await uploadDocument(selectedFile);
 
       setUploadedDocument(document);
+      setMessages(loadChatHistory(document.id));
       localStorage.setItem("ai-knowledge-active-document", document.id);
       const updatedDocuments = await getDocuments();
       setDocuments(updatedDocuments);
@@ -243,6 +282,9 @@ export default function Home() {
       }
 
       setView("documents");
+      toast.success("Document indexed successfully", {
+        description: `${document.filename} is ready for AI Chat.`,
+      });
     } catch (error) {
       setUploadError(
         error instanceof Error
@@ -290,16 +332,11 @@ export default function Home() {
   function handleClearChat() {
     if (!uploadedDocument || isAnswering) return;
 
-    const confirmed = window.confirm(
-      `Clear chat history for "${uploadedDocument.filename}"?`,
-    );
-
-    if (!confirmed) return;
-
     localStorage.removeItem(getChatStorageKey(uploadedDocument.id));
 
     setMessages([]);
     setChatError(null);
+    setClearChatDialogOpen(false);
   }
 
   async function handleAsk() {
@@ -696,32 +733,52 @@ export default function Home() {
                     const active = uploadedDocument?.id === document.id;
 
                     return (
-                      <button
+                      <div
                         key={document.id}
-                        onClick={() => openDocumentChat(document)}
-                        className={`flex w-full items-center gap-4 rounded-xl border p-4 text-left transition ${
+                        className={`flex items-center gap-2 rounded-xl border p-2 transition ${
                           active
                             ? "border-violet-500 bg-violet-500/10"
                             : "border-white/10 bg-white/5 hover:border-violet-500/40"
                         }`}
                       >
-                        <FileText className="h-7 w-7 shrink-0 text-violet-400" />
+                        <button
+                          type="button"
+                          onClick={() => openDocumentChat(document)}
+                          className="flex min-w-0 flex-1 items-center gap-4 rounded-lg p-2 text-left"
+                        >
+                          <FileText className="h-7 w-7 shrink-0 text-violet-400" />
 
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-white">
-                            {document.filename}
-                          </p>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-white">
+                              {document.filename}
+                            </p>
 
-                          <p className="mt-1 text-xs text-zinc-500">
-                            {document.page_count} pages · {document.chunk_count}{" "}
-                            chunks
-                          </p>
-                        </div>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              {document.page_count} pages ·{" "}
+                              {document.chunk_count} chunks
+                            </p>
+                          </div>
 
-                        <Badge className="bg-emerald-500/10 text-emerald-400">
-                          {active ? "Selected" : "Indexed"}
-                        </Badge>
-                      </button>
+                          <Badge className="bg-emerald-500/10 text-emerald-400">
+                            {active ? "Selected" : "Indexed"}
+                          </Badge>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDocumentToDelete(document)}
+                          disabled={deletingDocumentId !== null || isAnswering}
+                          aria-label={`Delete ${document.filename}`}
+                          title="Delete document"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-red-500/10 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {deletingDocumentId === document.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -742,6 +799,12 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
+                )}
+
+                {deleteError && (
+                  <p role="alert" className="mb-4 text-sm text-red-400">
+                    {deleteError}
+                  </p>
                 )}
 
                 {uploadError && (
@@ -810,12 +873,43 @@ export default function Home() {
                   chatError={chatError}
                   onQuestionChange={setQuestion}
                   onAsk={handleAsk}
-                  onClearChat={handleClearChat}
+                  onClearChat={() => setClearChatDialogOpen(true)}
                   onChangeDocument={() => setView("documents")}
                 />
               </div>
             )}
           </div>
+
+          <ConfirmDialog
+            open={documentToDelete !== null}
+            title="Delete document?"
+            description={
+              documentToDelete
+                ? `Are you sure you want to delete "${documentToDelete.filename}"?\n\nThe PDF and all indexed chunks will be permanently removed. This action cannot be undone.`
+                : ""
+            }
+            confirmLabel="Delete Document"
+            loading={deletingDocumentId !== null}
+            onConfirm={() => {
+              if (documentToDelete) {
+                void handleDeleteDocument(documentToDelete);
+              }
+            }}
+            onCancel={() => setDocumentToDelete(null)}
+          />
+
+          <ConfirmDialog
+            open={clearChatDialogOpen}
+            title="Clear chat history?"
+            description={
+              uploadedDocument
+                ? `Are you sure you want to clear the chat history for "${uploadedDocument.filename}"?\n\nAll messages for this document will be removed from this browser. The PDF itself will not be deleted.`
+                : ""
+            }
+            confirmLabel="Clear Chat"
+            onConfirm={handleClearChat}
+            onCancel={() => setClearChatDialogOpen(false)}
+          />
 
           <input
             ref={fileInputRef}
