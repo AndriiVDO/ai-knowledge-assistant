@@ -41,6 +41,17 @@ For mathematical questions:
 
 IMPORTANT:
 Incorrect calculations are worse than incomplete answers.
+
+MATHEMATICAL FORMATTING RULES:
+- Use Markdown for clear and structured answers.
+- Put important mathematical formulas on separate lines.
+- Use $$ ... $$ for display equations.
+- Use $ ... $ for inline mathematical expressions.
+- Never place multiple display equations in one paragraph.
+- Explain the meaning of variables after each formula.
+- Use numbered steps when explaining calculations.
+- Do not invent numerical values or formulas that are not supported by the retrieved document.
+- If the document does not contain enough information, clearly say so.
 """
 
 def generate_answer(question: str, context: str) -> str:

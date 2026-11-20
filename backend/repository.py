@@ -130,3 +130,73 @@ def search_similar_chunks(
         }
         for row in rows
     ]
+
+
+def get_all_documents() -> list[dict]:
+    """Return indexed documents ordered by upload date."""
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    d.id,
+                    d.filename,
+                    d.file_size,
+                    d.page_count,
+                    d.uploaded_at,
+                    COUNT(c.document_id) AS chunk_count
+                FROM documents AS d
+                LEFT JOIN document_chunks AS c
+                    ON c.document_id = d.id
+                GROUP BY
+                    d.id,
+                    d.filename,
+                    d.file_size,
+                    d.page_count,
+                    d.uploaded_at
+                ORDER BY d.uploaded_at DESC
+                """
+            )
+
+            rows = cursor.fetchall()
+
+    return [
+        {
+            "id": str(row[0]),
+            "filename": row[1],
+            "file_size": row[2],
+            "page_count": row[3],
+            "uploaded_at": row[4].isoformat(),
+            "chunk_count": row[5],
+        }
+        for row in rows
+    ]
+
+
+def delete_document(document_id: str) -> bool:
+    """Delete a document and its indexed chunks."""
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            # Delete associated embeddings and chunks first.
+            cursor.execute(
+                """
+                DELETE FROM document_chunks
+                WHERE document_id = %s
+                """,
+                (document_id,),
+            )
+
+            # Delete document metadata.
+            cursor.execute(
+                """
+                DELETE FROM documents
+                WHERE id = %s
+                RETURNING id
+                """,
+                (document_id,),
+            )
+
+            deleted = cursor.fetchone() is not None
+
+    return deleted

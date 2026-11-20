@@ -19,7 +19,7 @@ def get_connection():
         )
 
     return psycopg.connect(
-        host="localhost",
+        host="127.0.0.1",
         port=5434,
         dbname="ai_knowledge",
         user="ai_user",

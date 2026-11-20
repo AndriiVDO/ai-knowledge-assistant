@@ -12,6 +12,8 @@ from backend.llm import generate_answer
 from fastapi import APIRouter, File, HTTPException, UploadFile
 import httpx
 from ollama import ResponseError
+from backend.repository import get_all_documents
+from backend.repository import delete_document
 
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1)
@@ -296,4 +298,47 @@ def ask_document(document_id: str, request: AskRequest):
         "answer": answer,
         "sources": rag_data["sources"],
         "model": "local-llm",
+    }
+
+@router.get("")
+def list_documents():
+    """Return all indexed documents from PostgreSQL."""
+    return {"documents": get_all_documents()}
+
+
+@router.delete("/{document_id}")
+def delete_uploaded_document(document_id: str):
+    """Delete a document, its chunks, and its uploaded PDF."""
+
+    try:
+        document_uuid = UUID(document_id)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid document ID",
+        ) from error
+
+    normalized_id = str(document_uuid)
+
+    deleted = delete_document(normalized_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found",
+        )
+
+    file_path = UPLOAD_DIR / f"{normalized_id}.pdf"
+
+    try:
+        file_path.unlink(missing_ok=True)
+    except OSError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Document metadata was deleted, but PDF file removal failed",
+        ) from error
+
+    return {
+        "message": "Document deleted successfully",
+        "document_id": normalized_id,
     }
