@@ -177,7 +177,23 @@ Local PostgreSQL configuration:
 | User     | ai_user           |
 | Password | Value from `.env` |
 
-The application requires the pgvector extension and its database tables to be initialized. Starting Docker Compose alone does not create the application's document tables.
+### Automatic Database Initialization
+
+PostgreSQL is managed using Docker Compose.
+
+On the first startup with an empty PostgreSQL data volume, Docker automatically executes `database/init.sql`.
+
+The initialization script:
+
+- Enables the pgvector extension.
+- Creates the `documents` table.
+- Creates the `document_chunks` table with 384-dimensional embeddings.
+- Configures the foreign key with `ON DELETE CASCADE`.
+- Creates the index for document chunk retrieval.
+
+Database data is stored in a persistent Docker volume, so restarting the container does not delete documents or embeddings.
+
+**Note:** Initialization scripts run only when PostgreSQL initializes a new, empty data directory. Changes to `init.sql` do not automatically modify an existing database.
 
 ### 4. Install backend dependencies
 
@@ -366,6 +382,7 @@ npm run build
 - [x] PDF deletion and confirmation dialogs
 - [x] Automated backend tests
 - [x] Docker Compose for PostgreSQL
+- [x] Automatic PostgreSQL schema initialization
 
 ### Planned
 
